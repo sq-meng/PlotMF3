@@ -371,6 +371,8 @@ def read_mf_scans(filename_list=None, ub_matrix=None, intensity_matrix=None, pro
     if filename_list is None:
         path = ask_directory('Folder containing data')
         filename_list = list_flexx_files(path)
+    if len(filename_list) == 0:
+        raise FileNotFoundError('No file to read.')
     arg_list = []
     for name in filename_list:
         arg_list.append((name, ub_matrix, intensity_matrix))
