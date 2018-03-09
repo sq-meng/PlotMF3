@@ -16,19 +16,19 @@ from tkinter import filedialog
 import os
 
 try:
-    DETECTOR_WORKING = np.loadtxt('alive.csv')
+    DETECTOR_WORKING = np.loadtxt('res/alive.csv')
 except FileNotFoundError:
     print('Dead detector map not found - assuming all working.')
     DETECTOR_WORKING = np.ones(NUM_CHANNELS, len(EF_LIST))
 
 try:
-    WEIGHTS = np.loadtxt('weights.csv', delimiter=',')
+    WEIGHTS = np.loadtxt('res/weights.csv', delimiter=',')
 except FileNotFoundError:
     print('')
     WEIGHTS = np.ones(NUM_CHANNELS, len(EF_LIST))
 
 try:
-    INTENSITY_COEFFICIENT = np.loadtxt('int_corr.csv', delimiter=',')
+    INTENSITY_COEFFICIENT = np.loadtxt('res/int_corr.csv', delimiter=',')
 except FileNotFoundError:
     print('intensity correction matrix not found - assuming all ones.')
     INTENSITY_COEFFICIENT = np.ones(NUM_CHANNELS, 1)
