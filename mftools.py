@@ -200,8 +200,8 @@ class Scan(object):
         self.planned_locus_list = []
         self.actual_locus_list = []
         kf_list = [etok(e) for e in EF_LIST]
-        a3_start, a3_end_planned, a3_end_actual = self.a3_ranges
-        a4_start, a4_end_planned, a4_end_actual = self.a4_ranges
+        a3_start, a3_end_actual, a3_end_planned = self.a3_ranges
+        a4_start, a4_end_actual, a4_end_planned = self.a4_ranges
         self.planned_locus_list = [calculate_locus(self.ki, kf, a3_start, a3_end_planned, a4_start, a4_end_planned,
                                                    self.ub_matrix, expand_a3=True) for kf in kf_list]
         self.actual_locus_list = [calculate_locus(self.ki, kf, a3_start, a3_end_actual, a4_start, a4_end_actual,

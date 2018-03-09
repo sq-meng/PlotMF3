@@ -259,9 +259,9 @@ def angle_to_qs(ki, kf, a3, a4):
 
 def calculate_locus(ki, kf, a3_start, a3_end, a4_start, a4_end, ub_matrix, expand_a3=False):
     if a4_start > 0:
-        a4_span = (NUM_CHANNELS - 1) / 2 * CHANNEL_SEPARATION
+        a4_span = (NUM_CHANNELS - 1) * CHANNEL_SEPARATION
     else:
-        a4_span = (NUM_CHANNELS - 1) / 2 * CHANNEL_SEPARATION * (-1)
+        a4_span = (NUM_CHANNELS - 1) * CHANNEL_SEPARATION * (-1)
     if a3_start > a3_end:
         a3_start, a3_end = (a3_end, a3_start)
     if expand_a3:
