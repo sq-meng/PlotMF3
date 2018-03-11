@@ -332,8 +332,8 @@ def series_to_binder(items: pd.Series):
     return DataBinder(list(items))
 
 
-def bin_scans(list_of_data, nan_fill=0, ignore_ef=False):
-    df = pd.DataFrame(index=range(len(list_of_data) * 5),
+def bin_scans(list_of_data, nan_fill=0, ignore_ef=False, en_tolerance=0.05, tt_tolerance=0.5, mag_tolerance=0.05):
+    df = pd.DataFrame(index=range(len(list_of_data) * len(EF_LIST)),
                       columns=['name', 'ei', 'ef', 'en', 'tt', 'mag', 'points', 'locus_a', 'locus_p'])
     for i, scan in enumerate(list_of_data):
         for j in range(len(EF_LIST)):
@@ -343,10 +343,10 @@ def bin_scans(list_of_data, nan_fill=0, ignore_ef=False):
                                                scan.actual_locus_list[j], scan.planned_locus_list[j]]
 
     df = df.fillna(nan_fill)
-    cut_ei = bin_and_cut(df.ei, 0.05)
-    cut_en = bin_and_cut(df.en, 0.05)
-    cut_tt = bin_and_cut(df.tt, 0.5)
-    cut_mag = bin_and_cut(df.mag, 0.05)
+    cut_ei = bin_and_cut(df.ei, en_tolerance)
+    cut_en = bin_and_cut(df.en, en_tolerance)
+    cut_tt = bin_and_cut(df.tt, tt_tolerance)
+    cut_mag = bin_and_cut(df.mag, mag_tolerance)
 
     if ignore_ef:
         raise NotImplementedError('For the love of god do not try to mix data from different final energies!')
@@ -384,12 +384,13 @@ def read_mf_scans(filename_list=None, ub_matrix=None, intensity_matrix=None, pro
     return data_list
 
 
-def read_and_bin(filename_list=None, ub_matrix=None, intensity_matrix=None, processes=1):
+def read_and_bin(filename_list=None, ub_matrix=None, intensity_matrix=None, processes=1,
+                 en_tolerance=0.05, tt_tolerance=0.5, mag_tolerance=0.05):
     if filename_list is None:
         path = ask_directory('Folder containing data')
         filename_list = list_flexx_files(path)
     items = read_mf_scans(filename_list, ub_matrix, intensity_matrix, processes)
-    df = bin_scans(items)
+    df = bin_scans(items, en_tolerance=en_tolerance, tt_tolerance=tt_tolerance, mag_tolerance=mag_tolerance)
     return df
 
 
