@@ -11,7 +11,6 @@ import pyclipper
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpl_patches
 import matplotlib.path as mpl_path
-import tkinter
 from tkinter import filedialog
 import os
 
@@ -470,11 +469,14 @@ class BinnedData(object):
             result = pd.DataFrame({'x': percentiles, 'y': intensities, 'yerr': yerr}).sort_values(by='x')
             cut_results.append(result)
         cut_object = ConstECut(cut_results, self, select, start, end)
+        self.last_cut = cut_object
         cut_object.plot(precision=precision, labels=labels)
         return cut_object
 
     def plot(self, select=None):
-        return Plot2D(data_object=self, select=select)
+        plot_object = Plot2D(data_object=self, select=select)
+        self.last_plot = plot_object
+        return plot_object
 
     def make_label(self, index, multiline=False, precision=2, columns=None) -> str:
         """
@@ -655,10 +657,7 @@ def _draw_coverage_patch(ax_handle, locus):
 
 
 def ask_directory(title='Choose a folder'):
-    root = tkinter.Tk()
-    root.withdraw()
-    path = filedialog.askdirectory(parent=root, initialdir='.', title=title)
-    # root.destroy()
+    path = filedialog.askdirectory(initialdir='.', title=title)
     return path
 
 
