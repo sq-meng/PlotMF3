@@ -24,13 +24,13 @@ except FileNotFoundError:
 try:
     WEIGHTS = np.loadtxt('res/weights.csv', delimiter=',')
 except FileNotFoundError:
-    print('')
+    print('Boundary angle channel strategy not defined - assuming equal weights.')
     WEIGHTS = np.ones(NUM_CHANNELS, len(EF_LIST))
 
 try:
     INTENSITY_COEFFICIENT = np.loadtxt('res/int_corr.csv', delimiter=',')
 except FileNotFoundError:
-    print('intensity correction matrix not found - assuming all ones.')
+    print('Intensity correction matrix not found - assuming all ones.')
     INTENSITY_COEFFICIENT = np.ones(NUM_CHANNELS, 1)
 
 
@@ -114,7 +114,7 @@ def parse_ill_data(file_object, start_flag='DATA_:\n'):
     flat_number_lines = len(flat_all)
     if len(df_clean) == 0:
         raise ValueError('file %s does contain any data.' % file_object.name)
-    if len(df_clean) - flat_number_lines <= 1:
+    if len(df_clean) - flat_number_lines <= 1:  # sanity check: only 1 missing flatcone line is acceptable
         flat_frames = []
         for nth, line in enumerate(flat_all):
             try:
@@ -471,11 +471,14 @@ class BinnedData(object):
             result = pd.DataFrame({'x': percentiles, 'y': intensities, 'yerr': yerr}).sort_values(by='x')
             cut_results.append(result)
         cut_object = ConstECut(cut_results, self, select, start, end)
+        self.last_cut = cut_object
         cut_object.plot(precision=precision, labels=labels)
         return cut_object
 
     def plot(self, select=None):
-        return Plot2D(data_object=self, select=select)
+        plot_object = Plot2D(data_object=self, select=select)
+        self.last_plot = plot_object
+        return plot_object
 
     def make_label(self, index, multiline=False, precision=2, columns=None) -> str:
         """
@@ -658,8 +661,7 @@ def _draw_coverage_patch(ax_handle, locus):
 def ask_directory(title='Choose a folder'):
     root = tkinter.Tk()
     root.withdraw()
-    path = filedialog.askdirectory(parent=root, initialdir='.', title=title)
-    # root.destroy()
+    path = filedialog.askdirectory(initialdir='.', title=title)
     return path
 
 
