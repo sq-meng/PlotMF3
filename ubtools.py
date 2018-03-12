@@ -1,10 +1,6 @@
 import numpy as np
 from fractions import Fraction
 
-NUM_CHANNELS = 31
-CHANNEL_SEPARATION = 2.5
-EF_LIST = [2.5, 3.0, 3.5, 4.0, 4.5]
-
 
 def etok(e_mev):
     return np.sqrt(e_mev) * 0.6947
@@ -257,26 +253,3 @@ def angle_to_qs(ki, kf, a3, a4):
     return q_in_s
 
 
-def calculate_locus(ki, kf, a3_start, a3_end, a4_start, a4_end, ub_matrix, expand_a3=False):
-    if a4_start > 0:
-        a4_span = (NUM_CHANNELS - 1) * CHANNEL_SEPARATION
-    else:
-        a4_span = (NUM_CHANNELS - 1) * CHANNEL_SEPARATION * (-1)
-    if a3_start > a3_end:
-        a3_start, a3_end = (a3_end, a3_start)
-    if expand_a3:
-        a3_end = a3_end + 0.05
-        a3_start - a3_start - 0.05
-    a3_range = np.linspace(a3_start, a3_end, max(abs(int(a3_end - a3_start)), 2))
-    a4_range_low = np.linspace(a4_start - a4_span / 2, a4_end - a4_span / 2, max(abs(int(a3_end - a3_start)), 2))
-    a4_range_high = np.linspace(a4_end + a4_span / 2, a4_start + a4_span / 2, max(abs(int(a3_end - a3_start)), 2))
-    a4_span_range_low = np.linspace(a4_start + a4_span / 2, a4_start - a4_span / 2, NUM_CHANNELS)
-    a4_span_range_high = np.linspace(a4_end - a4_span / 2, a4_end + a4_span / 2, NUM_CHANNELS)
-
-    a3_list = np.hstack((a3_range, a3_range[-1] * np.ones(len(a4_span_range_high)),
-                         a3_range[::-1], a3_range[0] * np.ones(len(a4_span_range_low))))
-    a4_list = np.hstack((a4_range_low, a4_span_range_high, a4_range_high, a4_span_range_low))
-    s_locus = angle_to_qs(ki, kf, a3_list, a4_list)
-    p_locus = ub_matrix.convert(s_locus, 'sp')
-
-    return np.ndarray.tolist(p_locus[0:2, :].T)
