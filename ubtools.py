@@ -23,6 +23,10 @@ class UBMatrix(object):
         self.update_conversion_matrices()
 
     @property
+    def latparam(self):
+        return self._latparam
+
+    @property
     def hkl1(self):
         return self._hkl1
 
@@ -138,6 +142,16 @@ class UBMatrix(object):
 
     def copy(self):
         return self.__copy__()
+
+    def __eq__(self, other: 'UBMatrix'):
+        latparam_eq = np.all(self.latparam == other.latparam)
+        hkl_eq = np.all(self.hkl1 == other.hkl1) and np.all(self.hkl2 == other.hkl2)
+        plot_eq = np.all(self.plot_x == other.plot_x) and np.all(self.plot_y == other.plot_y)
+
+        if latparam_eq and hkl_eq and plot_eq:
+            return True
+        else:
+            return False
 
 
 def rotate_around_z(vectors, angles):
