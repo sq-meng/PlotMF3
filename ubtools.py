@@ -265,5 +265,3 @@ def angle_to_qs(ki, kf, a3, a4):
     kf_in_s = kf * rotate_around_z(initial_vectors, np.radians(a4))
     q_in_s = rotate_around_z(kf_in_s - ki_in_s, - np.radians(a3))
     return q_in_s
-
-
