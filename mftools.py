@@ -332,7 +332,7 @@ def series_to_binder(items: pd.Series):
     return DataBinder(list(items))
 
 
-def bin_scans(list_of_data, nan_fill=0, ignore_ef=False, en_tolerance=0.05, tt_tolerance=0.5, mag_tolerance=0.05):
+def bin_scans(list_of_data, nan_fill=0, ignore_ef=False, en_tolerance=0.05, tt_tolerance=1.0, mag_tolerance=0.05):
     df = pd.DataFrame(index=range(len(list_of_data) * len(EF_LIST)),
                       columns=['name', 'ei', 'ef', 'en', 'tt', 'mag', 'points', 'locus_a', 'locus_p'])
     for i, scan in enumerate(list_of_data):
@@ -385,7 +385,7 @@ def read_mf_scans(filename_list=None, ub_matrix=None, intensity_matrix=None, pro
 
 
 def read_and_bin(filename_list=None, ub_matrix=None, intensity_matrix=None, processes=1,
-                 en_tolerance=0.05, tt_tolerance=0.5, mag_tolerance=0.05):
+                 en_tolerance=0.05, tt_tolerance=1.0, mag_tolerance=0.05):
     if filename_list is None:
         path = ask_directory('Folder containing data')
         filename_list = list_flexx_files(path)
