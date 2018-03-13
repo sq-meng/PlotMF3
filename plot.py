@@ -6,4 +6,3 @@ if __name__ == "__main__":
     p = df.plot()
     print('close this console window after you are finished.')
     plt.show()
-    print('plt unblocked.')

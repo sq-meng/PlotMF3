@@ -14,9 +14,11 @@ import matplotlib.path as mpl_path
 import tkinter
 from tkinter import filedialog
 import os
+from typing import List
 
 NUM_CHANNELS = 31
 EF_LIST = [2.5, 3.0, 3.5, 4.0, 4.5]
+CHANNEL_SEPARATION = 2.5
 
 try:
     DETECTOR_WORKING = np.loadtxt('res/alive.csv')
@@ -145,7 +147,7 @@ class Scan(object):
     def __init__(self, file_name, ub_matrix=None, intensity_matrix=None):
         f = open(file_name)
         self.header, self.data = parse_ill_data(f)
-        self.file_name = file_name
+        self.file_name = os.path.abspath(file_name)
         if 'flat' not in self.data.columns:
             raise AttributeError('%s does not contain flatcone data.' % file_name)
         elif 'A3' not in self.header['STEPS'].keys():
@@ -335,42 +337,44 @@ def series_to_binder(items: pd.Series):
     return DataBinder(list(items))
 
 
-def bin_scans(list_of_data, nan_fill=0, ignore_ef=False, en_tolerance=0.05, tt_tolerance=1.0, mag_tolerance=0.05):
-    df = pd.DataFrame(index=range(len(list_of_data) * len(EF_LIST)),
-                      columns=['name', 'ei', 'ef', 'en', 'tt', 'mag', 'points', 'locus_a', 'locus_p'])
+def bin_scans(list_of_data: List['Scan'], nan_fill=0, ignore_ef=False,
+              en_tolerance=0.05, tt_tolerance=1.0, mag_tolerance=0.05) -> 'BinnedData':
+    all_data = pd.DataFrame(index=range(len(list_of_data) * len(EF_LIST)),
+                            columns=['name', 'ei', 'ef', 'en', 'tt', 'mag', 'points', 'locus_a', 'locus_p'])
+    file_names = [data.file_name for data in list_of_data]
     for i, scan in enumerate(list_of_data):
         for j in range(len(EF_LIST)):
             ef = EF_LIST[j]
-            df.loc[i * len(EF_LIST) + j, :] = [scan.file_name, scan.ei, ef, scan.ei - ef,
-                                               scan.tt, scan.mag, scan.converted_dataframes[j],
-                                               scan.actual_locus_list[j], scan.planned_locus_list[j]]
+            all_data.loc[i * len(EF_LIST) + j, :] = [scan.file_name, scan.ei, ef, scan.ei - ef,
+                                                     scan.tt, scan.mag, scan.converted_dataframes[j],
+                                                     scan.actual_locus_list[j], scan.planned_locus_list[j]]
 
-    df = df.fillna(nan_fill)
-    cut_ei = bin_and_cut(df.ei, en_tolerance)
-    cut_en = bin_and_cut(df.en, en_tolerance)
-    cut_tt = bin_and_cut(df.tt, tt_tolerance)
-    cut_mag = bin_and_cut(df.mag, mag_tolerance)
+    all_data = all_data.fillna(nan_fill)
+    cut_ei = bin_and_cut(all_data.ei, en_tolerance)
+    cut_en = bin_and_cut(all_data.en, en_tolerance)
+    cut_tt = bin_and_cut(all_data.tt, tt_tolerance)
+    cut_mag = bin_and_cut(all_data.mag, mag_tolerance)
 
     if ignore_ef:
         raise NotImplementedError('For the love of god do not try to mix data from different final energies!')
     else:
-        df_group = df.groupby([cut_ei, cut_en, cut_tt, cut_mag])
-    grouped = df_group['ei', 'ef', 'en', 'tt', 'mag'].mean()
-    grouped_data = df_group['points'].apply(series_to_binder).apply(MergedDataPoints)
+        grouped = all_data.groupby([cut_ei, cut_en, cut_tt, cut_mag])
+    grouped_meta = grouped['ei', 'ef', 'en', 'tt', 'mag'].mean()
+    grouped_data = grouped['points'].apply(series_to_binder).apply(MergedDataPoints)
 
-    grouped_locus_a = df_group['locus_a'].apply(series_to_binder).apply(MergedLocus)
-    grouped_locus_p = df_group['locus_p'].apply(series_to_binder).apply(MergedLocus)
-    joined = pd.concat([grouped, grouped_data, grouped_locus_a, grouped_locus_p], axis=1)
+    grouped_locus_a = grouped['locus_a'].apply(series_to_binder).apply(MergedLocus)
+    grouped_locus_p = grouped['locus_p'].apply(series_to_binder).apply(MergedLocus)
+    joined = pd.concat([grouped_meta, grouped_data, grouped_locus_a, grouped_locus_p], axis=1)
     index_reset = joined.dropna().reset_index(drop=True)
-    return BinnedData(index_reset, ub_matrix=list_of_data[0].ub_matrix)
+    return BinnedData(index_reset, file_names=file_names, ub_matrix=list_of_data[0].ub_matrix)
 
 
-def read_mf_scan(filename, ub_matrix=None, intensity_matrix=None):
+def read_mf_scan(filename: str, ub_matrix=None, intensity_matrix=None) -> 'Scan':
     scan_object = Scan(filename, ub_matrix, intensity_matrix)
     return scan_object
 
 
-def read_mf_scans(filename_list=None, ub_matrix=None, intensity_matrix=None, processes=1):
+def read_mf_scans(filename_list: List[str]=None, ub_matrix=None, intensity_matrix=None, processes=1) -> List['Scan']:
     if filename_list is None:
         path = ask_directory('Folder containing data')
         filename_list = list_flexx_files(path)
@@ -423,7 +427,8 @@ class MergedDataPoints(pd.DataFrame):
 
 
 class BinnedData(object):
-    def __init__(self, source_dataframe: pd.DataFrame, ub_matrix: UBMatrix=None):
+    def __init__(self, source_dataframe: pd.DataFrame, file_names: List[str], ub_matrix: UBMatrix=None):
+        self._file_names = file_names
         self.data = source_dataframe
         self.ub_matrix = ub_matrix
         self._generate_patch()
@@ -478,8 +483,8 @@ class BinnedData(object):
         cut_object.plot(precision=precision, labels=labels)
         return cut_object
 
-    def plot(self, select=None):
-        plot_object = Plot2D(data_object=self, select=select)
+    def plot(self, select=None, columns=None, aspect=None):
+        plot_object = Plot2D(data_object=self, select=select, cols=columns, aspect=aspect)
         self.last_plot = plot_object
         return plot_object
 
@@ -506,8 +511,36 @@ class BinnedData(object):
             join_char = ', '
         return join_char.join(elements)
 
-    def save(self):
-        pass
+    def to_csv(self):
+        subdir_name = '+'.join(self.scan_files())
+        full_dir_name = os.path.join(self.save_folder, subdir_name)
+        os.makedirs(full_dir_name, exist_ok=True)
+        summary = str(self)
+        f_summary = open(os.path.join(full_dir_name, 'summary.txt'), 'w')
+        f_summary.write(summary)
+        f_summary.close()
+        for index in self.data.index:
+            index_dir = os.path.join(full_dir_name, str(index))
+            os.makedirs(index_dir, exist_ok=True)
+            self.data.loc[index, 'points'].to_csv(os.path.join(index_dir, 'points.csv'))
+            for nth, patch in enumerate(self.data.loc[index, 'locus_a']):
+                file_name = 'actual_locus_%d.csv' % nth
+                full_name = os.path.join(index_dir, file_name)
+                np.savetxt(full_name, patch, delimiter=',', header='px, py', comments='')
+            for nth, patch in enumerate(self.data.loc[index, 'locus_p']):
+                file_name = 'planned_locus_%d.csv' % nth
+                full_name = os.path.join(index_dir, file_name)
+                np.savetxt(full_name, patch, delimiter=',', header='px, py', comments='')
+
+    @property
+    def save_folder(self):
+        return os.path.dirname(self._file_names[0])
+
+    def scan_files(self, full=False):
+        if full:
+            return self._file_names
+        else:
+            return [os.path.split(name)[1] for name in self._file_names]
 
 
 class ConstECut(object):
@@ -522,10 +555,12 @@ class ConstECut(object):
         self.end_r = end
 
     def to_csv(self):
-        pass
-
-    def to_eps(self):
-        pass
+        if len(self.cuts) > 1:
+            # Solely to shift responsibility of managing files to user.
+            raise NotImplementedError('Please cut and save individually.')
+        file = filedialog.asksaveasfile(initialdir=self.data_object.save_folder, defaultextension='.csv',
+                                        filetypes=(('comma-separated values', '.csv'), ))
+        self.cuts[0].to_csv(file)
 
     def plot(self, precision=2, labels=None):
         self.figure, self.ax = plt.subplots()
@@ -679,9 +714,6 @@ def _unpack_user_hkl(user_input: str):
         raise ValueError('Not a valid h, k, l input.')
 
     return unpacked
-
-
-CHANNEL_SEPARATION = 2.5
 
 
 def calculate_locus(ki, kf, a3_start, a3_end, a4_start, a4_end, ub_matrix, expand_a3=False):
