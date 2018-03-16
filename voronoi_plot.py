@@ -46,7 +46,7 @@ def generate_vpatch(x, y=None, aspect=1, angle_mode=False) -> list:
     return list_of_polygons
 
 
-def draw_patches(list_of_polygons, intensity_list=None, cm='inferno', empty_face=False, norm=None):
+def draw_patches(list_of_polygons, intensity_list=None, cm='inferno', empty_face=False, norm=None, alpha=None):
     patches = [Polygon(polygon, lw=0.1) for polygon in list_of_polygons]
     pc = PatchCollection(patches)
     if not empty_face:

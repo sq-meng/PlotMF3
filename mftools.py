@@ -464,11 +464,13 @@ class BinnedData(object):
         if select is None:
             select = self.data.index
         cut_results = []
+        point_indices = []
         for index in select:
             df = self.data.loc[index, 'points']
             voro = self.data.loc[index, 'voro']
             included = voronoi_plot.segment_intersect_polygons(seg, voro)
             df_filtered = df.loc[included]
+            point_indices.append(df_filtered.index)
             points = df_filtered[['px', 'py']]
             if monitor:
                 intensities = df_filtered['permon']
@@ -478,8 +480,58 @@ class BinnedData(object):
             percentiles = voronoi_plot.projection_on_segment(np.array(points), seg, self.ub_matrix.figure_aspect)
             result = pd.DataFrame({'x': percentiles, 'y': intensities, 'yerr': yerr}).sort_values(by='x')
             cut_results.append(result)
-        cut_object = ConstECut(cut_results, self, select, start, end)
+        cut_object = ConstECut(cut_results, point_indices, self, select, start, end)
         self.last_cut = cut_object
+        cut_object.plot(precision=precision, labels=labels)
+        return cut_object
+
+    def cut_bins(self, start, end, select=None, xtol=None, ytol=None, no_points=None, precision=2, labels=None):
+        if select is None:
+            select = self.data.index
+        if xtol is not None and ytol is not None:
+            raise ValueError('Only either of ytol or np should be supplied.')
+        start_s = self.ub_matrix.convert(start, 'rs')
+        end_s = self.ub_matrix.convert(end, 'rs')
+        length = np.linalg.norm(end_s - start_s)
+        if no_points is None and xtol is None:
+            xtol = length / 10
+        if no_points is not None:
+            xtol = length / (no_points - 1)
+        else:
+            try:
+                xtol = float(xtol)
+            except TypeError:
+                xtol = np.linalg.norm(self.ub_matrix.convert(xtol, 'rs'))
+
+        if ytol is not None:
+            try:
+                ytol = float(ytol)
+            except TypeError:
+                ytol = np.linalg.norm(self.ub_matrix.convert(ytol, 'rs'))
+        else:
+            ytol = xtol
+        cut_results = []
+        point_indices = []
+        for index in select:
+            frame = self.data.loc[index, 'points']
+            points_s = self.ub_matrix.convert(np.array(frame.loc[:, ['px', 'py', 'pz']]), 'ps', axis=1)
+            pd_cut = _binning_1d_cut(start_s, end_s, points_s, xtol, ytol)
+            group = frame.groupby(pd_cut)
+            counts_norm = group.counts_norm.sum().dropna()
+            counts = group.counts.sum().dropna()
+            yerr_scale = 1 / np.sqrt(counts)
+            monitor = group['MON'].sum().dropna()
+            counts_permon = counts_norm / monitor
+            yerr = counts_permon * yerr_scale
+            coords_p = group['px', 'py', 'pz'].mean().dropna()
+
+            coords_s = self.ub_matrix.convert(coords_p, 'ps', axis=1)
+            projections = voronoi_plot.projection_on_segment(coords_s, np.vstack((start_s, end_s)))
+            cut_result = pd.DataFrame({'x': projections, 'y': counts_permon, 'yerr': yerr}).dropna().reset_index(drop=True)
+            indices = pd_cut[0].dropna().index.intersection(pd_cut[1].dropna().index)
+            cut_results.append(cut_result)
+            point_indices.append(indices)
+        cut_object = ConstECut(cut_results, point_indices, self, select, start, end)
         cut_object.plot(precision=precision, labels=labels)
         return cut_object
 
@@ -544,10 +596,11 @@ class BinnedData(object):
 
 
 class ConstECut(object):
-    def __init__(self, cuts, data_object: BinnedData, indices, start, end):
+    def __init__(self, cuts, point_indices, data_object: BinnedData, data_indices, start, end):
         self.cuts = cuts
         self.data_object = data_object
-        self.indices = indices
+        self.data_indices = data_indices
+        self.point_indices = point_indices
         self.figure, self.ax = None, None
         self.artists = None
         self.legend = None
@@ -567,7 +620,7 @@ class ConstECut(object):
         self.artists = []
         ax = self.ax
         for i, cut in enumerate(self.cuts):
-            label = self.data_object.make_label(self.indices[i], precision=precision, columns=labels)
+            label = self.data_object.make_label(self.data_indices[i], precision=precision, columns=labels)
             artist = ax.errorbar(cut.x, cut.y, yerr=cut.yerr, fmt='o', label=label)
             self.artists.append(artist)
         self.legend = ax.legend()
@@ -577,8 +630,20 @@ class ConstECut(object):
         ax.set_xlabel('Cut from %s to %s' % (start_xlabel, end_xlabel))
         self.figure.tight_layout()
 
+    def inspect(self):
+        f, axes = plt.subplots(nrows=2)
+        axes = axes.reshape(2, -1)
+        for i in range(len(self.cuts)):
+            ax_top = axes[0, i]
+            ax_bottom = axes[1, i]
+            locus_p = self.data_object.data.loc[self.data_indices[i], 'locus_p']
+            points = self.data_object.data.loc[self.data_indices[i], 'points']
+            indices = self.point_indices[i]
+            _draw_locus_outline(ax_top, )
+            # TODO: finish this
+
     def __len__(self):
-        return len(self.indices)
+        return len(self.data_indices)
 
 
 class Plot2D(object):
@@ -605,9 +670,7 @@ class Plot2D(object):
             ax.grid(ls='--')
             ax.set_axisbelow(True)
             record = self.data_object.data.loc[index, :]
-            for locus in record.locus_p:
-                locus = np.array(locus)
-                ax.plot(locus[:, 0], locus[:, 1], lw=0.2)
+            _draw_locus_outline(ax, record.locus_p)
             legend_str = self.data_object.make_label(index, multiline=True)
             self.write_label(ax, legend_str)
             values = record.points.permon / record.points.permon.max()
@@ -648,6 +711,12 @@ class Plot2D(object):
     def set_norm(self, norm):
         for patch in self.patches:
             patch.set_norm(norm)
+
+
+def _draw_locus_outline(ax, locuses):
+    for locus in locuses:
+        locus = np.array(locus)
+        ax.plot(locus[:, 0], locus[:, 1], lw=0.2)
 
 
 def _calc_figure_dimension(no_plots, cols=None):
@@ -714,6 +783,47 @@ def _unpack_user_hkl(user_input: str):
         raise ValueError('Not a valid h, k, l input.')
 
     return unpacked
+
+
+def _binning_1d_cut(start: np.ndarray, end: np.ndarray, points, tol_transverse=None, tol_lateral=None):
+    """
+    Bins given points by a series of provided rectangular bins.
+    :param start: starting point.
+    :param end: end point.
+    :param points: row vector array or pandas DataFrame of point
+    :param tol_lateral: lateral tolerance, in absolute units of points.
+    :param tol_transverse: transversal tolerance.
+    :return: A tuple of two pd.cut for subsequent groupby
+    """
+    points = pd.DataFrame(data=points, columns=['x', 'y', 'z'])
+    delta_x = end[0] - start[0]
+    delta_y = end[1] - start[1]
+    segment_length = np.linalg.norm(end - start)
+    if delta_x == 0 and delta_y == 0:
+        raise ValueError('zero length segment provided to 1D-cut')
+    else:
+        if delta_y < 0:
+            angle = np.arccos(delta_x / segment_length)
+        else:
+            angle = -np.arccos(delta_x / segment_length)
+
+    start_rot = ubtools.rotate_around_z(start, angle)
+    end_rot = ubtools.rotate_around_z(end, angle)
+    scaling_factor = float((end_rot - start_rot)[0])
+    points_rot = pd.DataFrame(ubtools.rotate_around_z(np.array(points.loc[:, ['x', 'y', 'z']]), angles=angle, axis=0),
+                              index=points.index, columns=['x', 'y', 'z'])
+    points_scaled = (points_rot - start_rot) / scaling_factor
+    xtol = tol_transverse / scaling_factor
+    ytol = tol_lateral / scaling_factor
+    ycut = pd.cut(points_scaled.y, [-ytol, ytol])
+    xbins = [-xtol/2]
+    while True:
+        next_bin = xbins[-1] + xtol
+        xbins.append(next_bin)
+        if next_bin > 1:
+            break
+    xcut = pd.cut(points_scaled.x, xbins)
+    return xcut, ycut
 
 
 def calculate_locus(ki, kf, a3_start, a3_end, a4_start, a4_end, ub_matrix, expand_a3=False):

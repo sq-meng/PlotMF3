@@ -121,7 +121,7 @@ class UBMatrix(object):
         plot_y_unit_len = np.linalg.norm(self.convert(plot_y_r, 'rs'))
         return plot_y_unit_len / plot_x_unit_len
 
-    def convert(self, coord, sys):
+    def convert(self, vectors, sys, axis=0):
         try:
             conversion_matrix = self.conversion_matrices['sys']
         except KeyError:
@@ -134,8 +134,12 @@ class UBMatrix(object):
             self.conversion_matrices[sys[::-1]] = np.linalg.inv(conversion_matrix)
         finally:
             pass
-
-        return np.dot(conversion_matrix, coord)
+        if axis == 0:
+            return np.dot(conversion_matrix, vectors)
+        elif axis == 1:
+            return np.dot(conversion_matrix, vectors.T).T
+        else:
+            raise ValueError('invalid axis for ub-matrix vectors')
 
     def __copy__(self):
         return UBMatrix(self._latparam, self.hkl1, self.hkl2, self.plot_x, self.plot_y)
@@ -154,21 +158,34 @@ class UBMatrix(object):
             return False
 
 
-def rotate_around_z(vectors, angles):
+def rotate_around_z(vectors, angles, axis=1):
     """
     Rotates given vectors around third axis.
     :param vectors: numpy.array, vectors to be rotated
     :param angles: angles in radians.
+    :param axis: 1 for column vectors, 0 for row vectors.
     :return: rotated vectors.
     """
     try:
-        x, y, z = vectors[0, :], vectors[1, :], vectors[2, :]
-    except IndexError:
-        x, y, z = vectors[0],\
-                  vectors[1], vectors[2]
+        single_vector = False
+        if axis == 1:
+            x, y, z = vectors[0, :], vectors[1, :], vectors[2, :]
+        elif axis == 0:
+            x, y, z = vectors[:, 0], vectors[:, 1], vectors[:, 2]
+        else:
+            raise ValueError('rotation axis should be either 1 or 0, provided: %d' % axis)
+    except (IndexError, TypeError):
+        single_vector = True
+        x, y, z = vectors[0], vectors[1], vectors[2]
     cosines = np.cos(angles)
     sines = np.sin(angles)
-    return np.vstack([x * cosines - y * sines, x * sines + y * cosines, z])
+    results = np.vstack([x * cosines - y * sines, x * sines + y * cosines, z])
+    if single_vector:
+        return results.ravel()
+    if axis == 1:
+        return results
+    else:
+        return results.T
 
 
 def guess_axes_labels(hkl1, hkl2):
