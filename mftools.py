@@ -5,8 +5,8 @@ import pandas as pd
 import re
 from collections import defaultdict
 import voronoi_plot
-import ubtools
-from ubtools import UBMatrix, etok, ktoe, angle_to_qs
+import ub
+from ub import UBMatrix, etok, ktoe, angle_to_qs
 import pyclipper
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpl_patches
@@ -22,19 +22,19 @@ CHANNEL_SEPARATION = 2.5
 
 try:
     DETECTOR_WORKING = np.loadtxt('res/alive.csv')
-except FileNotFoundError:
+except OSError:
     print('Dead detector map not found - assuming all working.')
     DETECTOR_WORKING = np.ones(NUM_CHANNELS, len(EF_LIST))
 
 try:
     WEIGHTS = np.loadtxt('res/weights.csv', delimiter=',')
-except FileNotFoundError:
+except OSError:
     print('Boundary angle channel strategy not defined - assuming equal weights.')
     WEIGHTS = np.ones(NUM_CHANNELS, len(EF_LIST))
 
 try:
     INTENSITY_COEFFICIENT = np.loadtxt('res/int_corr.csv', delimiter=',')
-except FileNotFoundError:
+except OSError:
     print('Intensity correction matrix not found - assuming all ones.')
     INTENSITY_COEFFICIENT = np.ones(NUM_CHANNELS, 1)
 
@@ -679,8 +679,8 @@ class Plot2D(object):
             ax.add_collection(v_fill)
             v_fill.set_clip_path(coverage_patch)
             ax.set_aspect(aspect)
-            xlabel, ylabel = ubtools.guess_axes_labels(self.data_object.ub_matrix.plot_x,
-                                                       self.data_object.ub_matrix.plot_y)
+            xlabel, ylabel = ub.guess_axes_labels(self.data_object.ub_matrix.plot_x,
+                                                  self.data_object.ub_matrix.plot_y)
             ax.set_xlabel(xlabel)
             ax.set_ylabel(ylabel)
 
@@ -807,10 +807,10 @@ def _binning_1d_cut(start: np.ndarray, end: np.ndarray, points, tol_transverse=N
         else:
             angle = -np.arccos(delta_x / segment_length)
 
-    start_rot = ubtools.rotate_around_z(start, angle)
-    end_rot = ubtools.rotate_around_z(end, angle)
+    start_rot = ub.rotate_around_z(start, angle)
+    end_rot = ub.rotate_around_z(end, angle)
     scaling_factor = float((end_rot - start_rot)[0])
-    points_rot = pd.DataFrame(ubtools.rotate_around_z(np.array(points.loc[:, ['x', 'y', 'z']]), angles=angle, axis=0),
+    points_rot = pd.DataFrame(ub.rotate_around_z(np.array(points.loc[:, ['x', 'y', 'z']]), angles=angle, axis=0),
                               index=points.index, columns=['x', 'y', 'z'])
     points_scaled = (points_rot - start_rot) / scaling_factor
     xtol = tol_transverse / scaling_factor
